@@ -1,8 +1,8 @@
 # logrun# -*- coding: utf-8 -*-
 """
 NAME: LogRun
-VERSION: 1.0.1
-COMMIT: Correct TCP error
+VERSION: 1.0.2
+COMMIT: Added readme
 AUTHOR: Dmytro Petrashchuk
 EMAIL: dpgbox@gmail.com
 
