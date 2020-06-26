@@ -1,8 +1,8 @@
 # logrun# -*- coding: utf-8 -*-
 """
 NAME: LogRun
-VERSION: 1.0.0
-COMMIT: initial release
+VERSION: 1.0.1
+COMMIT: Correct TCP error
 AUTHOR: Dmytro Petrashchuk
 EMAIL: dpgbox@gmail.com
 
@@ -171,8 +171,8 @@ class LogRun:
                             print(line)
                         # Propagate
                         if self.propagate:
-                            splitted = line.split(':')
-                            line = ':'.join(splitted[1::])
+                            splitted = line.split(': ')
+                            line = ': '.join(splitted[1::])
                             self.srcip = splitted[0]
                         # Burst
                         if self.burst:
@@ -224,7 +224,7 @@ class LogRun:
         else:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.connect((dest, port))
-            sock.send(data)
+            sock.send(data.encode())
             sock.close()
 
 # main function entry point
