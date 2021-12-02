@@ -1,17 +1,18 @@
 # logrun# -*- coding: utf-8 -*-
 """
 NAME: LogRun
-VERSION: 1.0.2
-COMMIT: Added readme
+VERSION: 2.0.0
+COMMIT: EVTX file support
 AUTHOR: Dmytro Petrashchuk
 EMAIL: dpgbox@gmail.com
 
 Prerequisites for script
     1. Install Python 3.7 or later
-    2. Use command line parameters
-    3. Try -h option to get detailed help on usage
-    4. Look into the code to get additional insights
-    5. Don't stop yourself to use this script as you want and suggest your changes
+    2. Install additional packages with "pip install -r requirements.txt"
+    3. Use command line parameters
+    4. Try -h option to get detailed help on usage
+    5. Look into the code to get additional insights
+    6. Don't stop yourself to use this script as you want and suggest your changes
 """
 
 
@@ -20,13 +21,15 @@ import requests
 from time import sleep
 import socket
 from datetime import datetime
+#from Evtx.Evtx import Evtx
+import xmltodict
 
 # Ignore SSL-warnings
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 """Place the program description here """
-DESCRIPTION = ''' Script to send syslog from file to syslog server (based on IBM QRadar script logrun.pl). '''
+DESCRIPTION = ''' Script to send syslog from file (plain or evtx) to syslog server (based on IBM QRadar script logrun.pl). '''
 
 __all__ = ['logrun']
 
@@ -143,6 +146,8 @@ class LogRun:
         self.loop = args.get('loop') if args.get('loop') else False
         self.propagate = args.get('propagate') if args.get(
             'propagate') else False
+        if self.filename.split('.')[-1] == 'evtx':
+            self.evtx = True
 
     def run(self):
         """ Run the main cycle of reading file and sending to syslog
@@ -162,36 +167,71 @@ class LogRun:
         # Initialize the loop
         loop = True
         while loop:
-            # Read the file
+            """if self.evtx:
+
+                # Read the evtx
+                try:
+                    with Evtx(self.filename) as log:
+                        for line in log.records():
+                            self.process_line(self.parse_xml(line.xml()), delay, burst)
+                except IOError:
+                    print('Unable to parse evtx file:'+self.filename)
+                    exit(1)
+            else:
+            """    # Read the plain file
             try:
                 with open(self.filename, 'r', encoding='utf-8') as log:
                     for line in log:
-                        # Print the line
-                        if self.verbose:
-                            print(line)
-                        # Propagate
-                        if self.propagate:
-                            splitted = line.split(': ')
-                            line = ': '.join(splitted[1::])
-                            self.srcip = splitted[0]
-                        # Burst
-                        if self.burst:
-                            for i in range(1, burst):
-                                self.syslog(message=line, protocol=self.protocol,
-                                            dest=self.dest, port=self.port, object=self.object, src=self.srcip)
-                        # of just send syslog
-                        else:
-                            self.syslog(message=line, protocol=self.protocol,
-                                        dest=self.dest, port=self.port, object=self.object, src=self.srcip)
-                        if (delay > 0):
-                            if self.verbose:
-                                print('waiting for {} ms ...'.format(
-                                    delay * 1000))
-                            sleep(delay)
+                        self.process_line(line, delay, burst)
             except IOError:
                 print('Unable to open file:'+self.filename)
                 exit(1)
             loop = self.loop
+
+    def parse_xml(self, xml):
+        """ Parse XML formatted Windows event into string
+        Args:
+            xml(string): XML text to parse
+        Returns:
+            (string): string to send through syslog
+        """
+        print(xml)
+        eventd = xmltodict.parse(xml)
+        print(eventd)
+        events = ''
+        for element in eventd['Event']:
+            if element[0] == '@':
+                events = ' '.join([events,'{}="{}"'.format(
+                    element[1::], eventd['Event'][element])])
+            else:
+                for subelement in eventd['Event'][element]:
+                    print('---------------')
+                    print(subelement)
+        return events
+
+    def process_line(self, line, delay, burst):
+        """Print the line."""
+        if self.verbose:
+            print(line)
+        # Propagate
+        if self.propagate:
+            splitted = line.split(': ')
+            line = ': '.join(splitted[1::])
+            self.srcip = splitted[0]
+        # Burst
+        if self.burst:
+            for i in range(1, burst):
+                self.syslog(message=line, protocol=self.protocol,
+                            dest=self.dest, port=self.port, object=self.object, src=self.srcip)
+        # or just send syslog
+        else:
+            self.syslog(message=line, protocol=self.protocol,
+                        dest=self.dest, port=self.port, object=self.object, src=self.srcip)
+        if (delay > 0):
+            if self.verbose:
+                print('waiting for {} ms ...'.format(
+                    delay * 1000))
+            sleep(delay)
 
     def syslog(self, message='', facility=FACILITY['local6'], loglevel=LEVEL['info'], protocol='udp', port=514, dest='127.0.0.1', object=None, src=None):
         """ Send message to syslog
